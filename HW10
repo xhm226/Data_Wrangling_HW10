@@ -1,0 +1,40 @@
+library(shiny)
+library(tidyverse)
+library(tidycensus)
+
+census_api_key("YOUR API KEY GOES HERE")
+
+ui <- fluidPage(
+  sidebarLayout(
+    sidebarPanel(
+      selectInput("State", "State",choices =  state.abb, selected = "NJ"),
+      radioButtons("Type", "Type",
+                   choices = list("median_gross_rent",
+                                  "median_household_income",
+                                  "ratio"), 
+                   selected = "ratio")      
+    ),
+   mainPanel(plotOutput("Plot"))
+   ),
+  titlePanel("American Community Survey")
+)
+
+server <- function(input, output){
+  reduced_df <- reactive({
+    get_acs(
+      geography = "tract",
+      variables = c(median_gross_rent = "B25064_001" , median_household_income = "B19013_001"),
+      state = input$StateInput,
+      geometry = TRUE
+    ) %>% .[, -5] %>% data.frame() %>% 
+      spread(key = variable, value = estimate) %>% 
+      mutate(ratio = median_gross_rent / median_household_income)
+  })
+  
+  output$main_plot <- renderPlot({
+    reduced_df() %>% 
+      ggplot(aes_string(fill = input$TypeInput)) + geom_sf() + ggtitle(input$TypeInput) + 
+      scale_fill_gradientn(colours = rainbow(7))
+  })
+}
+
